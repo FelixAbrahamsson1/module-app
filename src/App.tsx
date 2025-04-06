@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "../components/ui/tabs";
 import { Card } from "../components/ui/card";
 
@@ -7,8 +7,14 @@ interface GridProps {
   onSelect: (index: number) => void;
 }
 
+const size = 5; // 5x5 grid
+type Device = {
+  ip: string;
+  id: number;
+};
+
+
 const Grid = ({ onSelect }: GridProps) => {
-  const size = 5; // 5x5 grid
   return (
     <div className="grid grid-cols-5 gap-2 p-4">
       {[...Array(size * size)].map((_, i) => (
@@ -28,16 +34,46 @@ export default function App() {
   const [selected, setSelected] = useState<number | null>(null);
   const [heights, setHeights] = useState<{ [key: number]: string }>({});
   const [input, setInput] = useState("");
+  const [devices, setDevices] = useState<{ [key: number]: string }>({});
 
-  const esp32Host = "http://172.20.10.3";
+
+  const defaultIP = "http://172.20.10.14";
+
+  useEffect(() => {
+    fetch('http://localhost:5050/scan')
+      .then(res => res.json())
+      .then((data: Device[]) => {
+        console.log(data);
+        data.forEach(device => {
+          if (device.id < size * size)
+          setDevices(prev => ({ ...prev, [device.id]: device.ip }));
+        });
+      })
+      .catch(err => console.error('Error:', err));
+  }, []);
 
   const handleSubmit = async () => {
     if (selected !== null) {
       setHeights({ ...heights, [selected]: input });
       try {
+        // Find earliest IP available
+        let ip : string = "";
+        for (let i = 0; i < size * size; i++) {
+          if (devices[i] != "" && devices[i] != undefined) {
+            ip = devices[i];
+          }
+          if (i >= selected && ip != "")
+            break;
+        }
+
+        if (ip == "") {
+          ip = defaultIP;
+        }
+        let url = `http://${ip}/setHeight?module=${selected}&height=${input}`;
+        console.log(url);
         // Send an HTTPS GET request to the ESP32 with module and height parameters
         const response = await fetch(
-          `${esp32Host}/setHeight?module=${selected}&height=${input}`,
+          url,
           {
             method: "GET",
           }
