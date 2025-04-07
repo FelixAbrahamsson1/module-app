@@ -33,7 +33,7 @@ const queryDevices = async (ips) => {
           const res = await fetchWithTimeout(url);
           if (!res.ok) throw new Error(`Status ${res.status}`);
           const data = await res.json();
-          console.log(data[0]);
+          console.log(ip, data[0]);
           return { ip, id: data[0] };
         } catch (err) {
           return { ip, error: err.message || 'No response' };
@@ -49,16 +49,13 @@ const queryDevices = async (ips) => {
   };
 
 app.get('/scan', async (req, res) => {
-    exec('ping 192.168.0.255');
+  const subnet = '172.20.10.';
+  const start = 1;
+  const end = 14;
 
-    exec(`arp -a | grep -Eo "([0-9]{1,3}\.){3}[0-9]{1,3}"`, async (err, stdout, stderr) => {
-      if (err) return res.status(500).json({ error: 'ARP failed', detail: stderr  });
-  
-      const ips = stdout.trim().split('\n');
-  
-      const results = await queryDevices(ips);
-      res.json(results);
-    });
-  });
+  const ips = Array.from({ length: end - start + 1 }, (_, i) => `${subnet}${i + start}`);
+  const results = await queryDevices(ips); // no arp — just test HTTP directly
+  res.json(results);
+});
 
 app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
