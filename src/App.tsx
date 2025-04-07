@@ -62,7 +62,7 @@ export default function App() {
         </TabsList>
         <TabsContent value="tab1">
           <div className="flex">
-            <Grid onSelect={setSelected} />
+            <Grid onSelect={setSelected}/>
             {selected !== null && (
               <Card className="p-4 ml-4">
                 <p>Selected: {selected}</p>
