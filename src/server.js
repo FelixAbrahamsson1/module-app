@@ -33,8 +33,8 @@ const queryDevices = async (ips) => {
           const res = await fetchWithTimeout(url);
           if (!res.ok) throw new Error(`Status ${res.status}`);
           const data = await res.json();
-          console.log(ip, data[0]);
-          return { ip, id: data[0] };
+          console.log(ip, data);
+          return { ip: ip, id: data };
         } catch (err) {
           return { ip, error: err.message || 'No response' };
         }
@@ -55,6 +55,7 @@ app.get('/scan', async (req, res) => {
 
   const ips = Array.from({ length: end - start + 1 }, (_, i) => `${subnet}${i + start}`);
   const results = await queryDevices(ips); // no arp — just test HTTP directly
+  console.log(results);
   res.json(results);
 });
 

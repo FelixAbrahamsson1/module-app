@@ -36,15 +36,16 @@ export default function App() {
   const [devices, setDevices] = useState<{ [key: number]: string }>({});
 
 
-  const defaultIP = "http://172.20.10.14";
+  const defaultIP = "172.20.10.14";
 
   const handleSubmit = async () => {
     if (selected !== null) {
       setHeights({ ...heights, [selected]: input });
       try {
         // Find earliest IP available
-        let ip : string = "";
+        let ip: string = "";
         for (let i = 0; i < size * size; i++) {
+          console.log(devices[i]);
           if (devices[i] != "" && devices[i] != undefined) {
             ip = devices[i];
           }
@@ -74,36 +75,42 @@ export default function App() {
   };
 
   const handleGetIPs = async () => {
-  useEffect(() => {
-    fetch('http://localhost:5050/scan')
-      .then(res => res.json())
-      .then((data: Device[]) => {
-        console.log(data);
-        data.forEach(device => {
-          if (device.id < size * size)
-          setDevices(prev => ({ ...prev, [device.id]: device.ip }));
-        });
-      })
-      .catch(err => console.error('Error:', err));
-  }, []);
+    try {
+      const res = await fetch("http://localhost:5050/scan");
+      const data: Device[] = await res.json();
+      console.log(data);
+
+      const newDevices: { [key: number]: string } = {};
+      data.forEach((device) => {
+        console.log(device.id);
+        console.log(device.ip);
+        if (device.id < size * size) {
+          newDevices[device.id] = device.ip;
+        }
+      });
+
+      setDevices(newDevices); // 🔥 One clean update
+    } catch (err) {
+      console.error("Error:", err);
+    }
   };
 
   return (
     <div className="p-6">
       <h1 className="text-2xl font-bold mb-4">AMF</h1>
       <div className="flex mb-4">
-        <button 
-          className="bg-blue-500 text-black px-4 py-2 mr-2" 
+        <button
+          className="bg-blue-500 text-black px-4 py-2 mr-2"
           onClick={() => handleGetIPs()}
         >
           Get IPs
         </button>
-<!--         <button 
-          className="bg-green-500 text-black px-4 py-2" 
-          onClick={() => scanNetwork()}
+        <button
+          className="bg-green-500 text-black px-4 py-2"
+          onClick={() => handleGetIPs()}
         >
           Scan Network
-        </button> -->
+        </button>
       </div>
       <Tabs defaultValue="tab1" className="w-full">
         <TabsList className="mb-4">
@@ -124,8 +131,8 @@ export default function App() {
                   value={input}
                   onChange={(e) => setInput(e.target.value)}
                 />
-                <button 
-                  className="bg-blue-500 text-black px-3 py-1 mt-2" 
+                <button
+                  className="bg-blue-500 text-black px-3 py-1 mt-2"
                   onClick={handleSubmit}
                 >
                   Submit
@@ -145,8 +152,10 @@ export default function App() {
         <div className="mt-4">
           <h2 className="text-xl font-bold">Scanned IPs:</h2>
           <ul>
-            {Object.entries(devices).map((ip) => (
-              <li key={ip}>{ip}</li>
+            {Object.entries(devices).map(([id, ip]) => (
+              <li key={id}>
+                Module {id}: {ip}
+              </li>
             ))}
           </ul>
         </div>
