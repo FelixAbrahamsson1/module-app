@@ -2,7 +2,6 @@ import { useState, useEffect } from "react";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "../components/ui/tabs";
 import { Card } from "../components/ui/card";
 
-
 interface GridProps {
   onSelect: (index: number) => void;
 }
@@ -39,19 +38,6 @@ export default function App() {
 
   const defaultIP = "http://172.20.10.14";
 
-  useEffect(() => {
-    fetch('http://localhost:5050/scan')
-      .then(res => res.json())
-      .then((data: Device[]) => {
-        console.log(data);
-        data.forEach(device => {
-          if (device.id < size * size)
-          setDevices(prev => ({ ...prev, [device.id]: device.ip }));
-        });
-      })
-      .catch(err => console.error('Error:', err));
-  }, []);
-
   const handleSubmit = async () => {
     if (selected !== null) {
       setHeights({ ...heights, [selected]: input });
@@ -87,9 +73,38 @@ export default function App() {
     setInput("");
   };
 
+  const handleGetIPs = async () => {
+  useEffect(() => {
+    fetch('http://localhost:5050/scan')
+      .then(res => res.json())
+      .then((data: Device[]) => {
+        console.log(data);
+        data.forEach(device => {
+          if (device.id < size * size)
+          setDevices(prev => ({ ...prev, [device.id]: device.ip }));
+        });
+      })
+      .catch(err => console.error('Error:', err));
+  }, []);
+  };
+
   return (
     <div className="p-6">
       <h1 className="text-2xl font-bold mb-4">AMF</h1>
+      <div className="flex mb-4">
+        <button 
+          className="bg-blue-500 text-black px-4 py-2 mr-2" 
+          onClick={() => handleGetIPs()}
+        >
+          Get IPs
+        </button>
+<!--         <button 
+          className="bg-green-500 text-black px-4 py-2" 
+          onClick={() => scanNetwork()}
+        >
+          Scan Network
+        </button> -->
+      </div>
       <Tabs defaultValue="tab1" className="w-full">
         <TabsList className="mb-4">
           <TabsTrigger value="tab1">Tab 1</TabsTrigger>
@@ -109,7 +124,10 @@ export default function App() {
                   value={input}
                   onChange={(e) => setInput(e.target.value)}
                 />
-                <button className="bg-blue-500 text-black px-3 py-1 mt-2" onClick={handleSubmit}>
+                <button 
+                  className="bg-blue-500 text-black px-3 py-1 mt-2" 
+                  onClick={handleSubmit}
+                >
                   Submit
                 </button>
               </Card>
@@ -123,6 +141,16 @@ export default function App() {
           <Grid onSelect={setSelected} />
         </TabsContent>
       </Tabs>
+      {Object.keys(devices).length > 0 && (
+        <div className="mt-4">
+          <h2 className="text-xl font-bold">Scanned IPs:</h2>
+          <ul>
+            {Object.entries(devices).map((ip) => (
+              <li key={ip}>{ip}</li>
+            ))}
+          </ul>
+        </div>
+      )}
     </div>
   );
 }
