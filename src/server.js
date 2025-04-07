@@ -51,7 +51,7 @@ const queryDevices = async (ips) => {
 app.get('/scan', async (req, res) => {
   const subnet = '172.20.10.';
   const start = 1;
-  const end = 14;
+  const end = 32;
 
   const ips = Array.from({ length: end - start + 1 }, (_, i) => `${subnet}${i + start}`);
   const results = await queryDevices(ips); // no arp — just test HTTP directly

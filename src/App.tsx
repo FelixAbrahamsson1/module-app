@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "../components/ui/tabs";
 import { Card } from "../components/ui/card";
 
@@ -11,6 +11,19 @@ type Device = {
   ip: string;
   id: number;
 };
+
+type Island = {
+  ip: string;
+  ids: number[];
+};
+
+type Modules = {
+  addr : number;
+  x: number;
+  y: number;
+  rotation: number;
+  is_placed: boolean;
+}
 
 
 const Grid = ({ onSelect }: GridProps) => {
@@ -29,14 +42,42 @@ const Grid = ({ onSelect }: GridProps) => {
   );
 };
 
+const delay = (ms: number) => {
+  return new Promise(res => setTimeout(res, ms));
+};
+
+
 export default function App() {
-  const [selected, setSelected] = useState<number | null>(null);
+  const [selected, setSelected] = useState<number>(0);
   const [heights, setHeights] = useState<{ [key: number]: string }>({});
   const [input, setInput] = useState("");
   const [devices, setDevices] = useState<{ [key: number]: string }>({});
+  // Map of module number to the module that is its master
+  const [islandMap, setIslandMap] = useState<{ [key: number]: number }>({});
+  const [islands, setIslands] = useState<Island[]>([]);
 
 
   const defaultIP = "172.20.10.14";
+
+  const hasRunOnce = useRef(false);
+
+  // Continuously refresh IPs
+  useEffect(() => {
+    // Call it once immediately
+    if (!hasRunOnce.current) {
+      handleGetIPs();
+      hasRunOnce.current = true;
+    }
+    
+    // Set up interval
+    // const interval = setInterval(() => {
+    //   handleGetIPs();
+    // }, 10000); // 10,000 ms = 10s
+  
+    // Clean up on unmount
+    // return () => clearInterval(interval);
+  }, []);
+  
 
   const handleSubmit = async () => {
     if (selected !== null) {
@@ -45,9 +86,10 @@ export default function App() {
         // Find earliest IP available
         let ip: string = "";
         for (let i = 0; i < size * size; i++) {
-          console.log(devices[i]);
-          if (devices[i] != "" && devices[i] != undefined) {
-            ip = devices[i];
+          if (islandMap[i] == undefined)
+            continue;
+          if (islands[islandMap[i]].ip != "" && islands[islandMap[i]].ip != undefined) {
+            ip = islands[islandMap[i]].ip;
           }
           if (i >= selected && ip != "")
             break;
@@ -74,6 +116,74 @@ export default function App() {
     setInput("");
   };
 
+  const getGrid = async (index: number, deviceMap: { [key: number]: string } | null = null) => {
+    try {
+      if (deviceMap == null)
+        deviceMap = devices;
+      if (deviceMap[index] != undefined) {
+        let response = await fetch(
+          `http://${deviceMap[index]}/getGrid`,
+          {
+            method: "GET",
+          }
+        );
+        console.log(`Got ${index} Grid!`);
+        let info: Modules[] = await response.json();
+
+        return info;
+      }
+    } catch (err) {
+      console.error("Error:", err);
+      return [];
+    }
+  }
+
+  const becomeMaster = async (index: number) => {
+    try {
+      if (devices[index] != undefined) {          
+        let response = await fetch(
+          `http://${devices[index]}/becomeMaster`,
+          {
+            method: "GET",
+          }
+        );
+      }
+    } catch (err) {
+      console.error("Error:", err);
+    }
+  }
+
+  const becomeSlave = async (index: number) => {
+    try {
+      if (devices[index] != undefined) {          
+        let response = await fetch(
+          `http://${devices[index]}/becomeSlave`,
+          {
+            method: "GET",
+          }
+        );
+      }
+    } catch (err) {
+      console.error("Error:", err);
+    }
+  }
+
+  const beginGrid = async (index: number) => {
+    try {
+      if (devices[index] != undefined) {          
+        let response = await fetch(
+          `http://${devices[index]}/beginGrid`,
+          {
+            method: "GET",
+          }
+        );
+      }
+    } catch (err) {
+      console.error("Error:", err);
+    }
+  }
+
+
   const handleGetIPs = async () => {
     try {
       const res = await fetch("http://localhost:5050/scan");
@@ -82,14 +192,73 @@ export default function App() {
 
       const newDevices: { [key: number]: string } = {};
       data.forEach((device) => {
-        console.log(device.id);
-        console.log(device.ip);
         if (device.id < size * size) {
           newDevices[device.id] = device.ip;
         }
       });
 
       setDevices(newDevices); // 🔥 One clean update
+
+      const newScanned: number[] = [];
+      const newIslands: Island[] = [];
+      const newIslandMap: { [key: number]: number } = {};
+
+      // for (let i = 4; i < size * size; i++) {
+      //   if (newDevices[i] != undefined) {
+      //     let response = await fetch(
+      //       `http://${newDevices[i]}/becomeSlave`,
+      //       {
+      //         method: "GET",
+      //       }
+      //     );
+      //     console.log(`Made ${i} Slave!`);
+      //   }
+
+      // }
+
+      // await delay(1000);
+
+      for (let i = 0; i < size * size; i++) {
+        if (newDevices[i] != undefined && !newScanned.includes(i)) {
+          let response = await fetch(
+            `http://${newDevices[i]}/becomeMaster`,
+            {
+              method: "GET",
+            }
+          );
+          console.log(`Made ${i} Master!`);
+          newScanned.push(i);
+
+          await beginGrid(i);
+          console.log(`Began ${i} Grid!`);
+
+          await delay(2000);
+
+          let modules = await getGrid(i, newDevices);
+          console.log(`Grid output: `);
+          console.log(modules);
+
+          let ids: number[] = [];
+
+          modules?.forEach((module) => {
+            ids.push(module.addr);
+            newScanned.push(module.addr);
+            // Record that this module maps to this island
+            newIslandMap[module.addr] = newIslands.length;
+          });
+
+          newIslands.push({ip: newDevices[i], ids: ids});
+          console.log("ISLANDS Found:");
+          console.log(newIslands);
+
+          setIslands(newIslands);
+          setIslandMap(newIslandMap);
+          break;
+        }
+
+      }
+
+
     } catch (err) {
       console.error("Error:", err);
     }
@@ -110,6 +279,30 @@ export default function App() {
           onClick={() => handleGetIPs()}
         >
           Scan Network
+        </button>
+        <button
+          className="bg-green-500 text-black px-4 py-2"
+          onClick={() => getGrid(selected)}
+        >
+          Get Grid
+        </button>
+        <button
+          className="bg-green-500 text-black px-4 py-2"
+          onClick={() => beginGrid(selected)}
+        >
+          Begin Grid
+        </button> 
+        <button
+          className="bg-green-500 text-black px-4 py-2"
+          onClick={() => becomeMaster(selected)}
+        >
+          Become Master
+        </button>
+        <button
+          className="bg-green-500 text-black px-4 py-2"
+          onClick={() => becomeSlave(selected)}
+        >
+          Become Slave
         </button>
       </div>
       <Tabs defaultValue="tab1" className="w-full">
