@@ -2,7 +2,6 @@ import { useState } from "react";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "../components/ui/tabs";
 import { Card } from "../components/ui/card";
 
-
 interface GridProps {
   onSelect: (index: number) => void;
 }
@@ -28,19 +27,17 @@ export default function App() {
   const [selected, setSelected] = useState<number | null>(null);
   const [heights, setHeights] = useState<{ [key: number]: string }>({});
   const [input, setInput] = useState("");
+  const [scannedIPs, setScannedIPs] = useState<string[]>([]);
 
-  const esp32Host = "http://172.20.10.3";
+  const esp32Host = "http://172.20.10.13";
 
   const handleSubmit = async () => {
     if (selected !== null) {
       setHeights({ ...heights, [selected]: input });
       try {
-        // Send an HTTPS GET request to the ESP32 with module and height parameters
         const response = await fetch(
           `${esp32Host}/setHeight?module=${selected}&height=${input}`,
-          {
-            method: "GET",
-          }
+          { method: "GET" }
         );
         const data = await response.text();
         console.log("ESP32 response:", data);
@@ -51,9 +48,73 @@ export default function App() {
     setInput("");
   };
 
+  const handleGetIPs = async () => {
+    try {
+      const response = await fetch(`${esp32Host}/getIPs`, { method: "GET" });
+      const data = await response.json();
+      console.log("ESP32 IP:", data);
+      return data;
+    } catch (error) {
+      console.error("Error fetching IPs from ESP32:", error);
+    }
+  };
+
+  const scanNetwork = async () => {
+    const baseIp = "172.20.10."; // Adjust based on your network
+    const activeIPs: string[] = [];
+    const requests = [];
+  
+    // Helper function to add a timeout to a fetch request
+    const fetchWithTimeout = (url: string, timeout = 2000) =>
+      Promise.race([
+        // Append a timestamp to bypass caching and disable cache with cache: "no-store"
+        fetch(`${url}?t=${Date.now()}`, { 
+          method: "HEAD", 
+          mode: "no-cors",
+          cache: "no-store" 
+        }),
+        new Promise((_, reject) =>
+          setTimeout(() => reject(new Error("timeout")), timeout)
+        ),
+      ]);
+  
+    for (let i = 1; i < 50; i++) {
+      const ip = `${baseIp}${i}`;
+      const request = fetchWithTimeout(`http://${ip}`)
+        .then((res) => {
+          // When using no-cors, responses are opaque.
+          // If we get a response (opaque or ok), we assume the IP is active.
+          if (res instanceof Response && (res.type === "opaque" || res.ok)) {
+            activeIPs.push(ip);
+          }
+        })
+        .catch(() => {
+          // Ignore errors; many IPs may not respond
+        });
+      requests.push(request);
+    }
+    await Promise.all(requests);
+    console.log("Active IPs:", activeIPs);
+    setScannedIPs(activeIPs);
+  };  
+
   return (
     <div className="p-6">
       <h1 className="text-2xl font-bold mb-4">AMF</h1>
+      <div className="flex mb-4">
+        <button 
+          className="bg-blue-500 text-black px-4 py-2 mr-2" 
+          onClick={() => handleGetIPs()}
+        >
+          Get IPs
+        </button>
+        <button 
+          className="bg-green-500 text-black px-4 py-2" 
+          onClick={() => scanNetwork()}
+        >
+          Scan Network
+        </button>
+      </div>
       <Tabs defaultValue="tab1" className="w-full">
         <TabsList className="mb-4">
           <TabsTrigger value="tab1">Tab 1</TabsTrigger>
@@ -62,7 +123,7 @@ export default function App() {
         </TabsList>
         <TabsContent value="tab1">
           <div className="flex">
-            <Grid onSelect={setSelected}/>
+            <Grid onSelect={setSelected} />
             {selected !== null && (
               <Card className="p-4 ml-4">
                 <p>Selected: {selected}</p>
@@ -73,7 +134,10 @@ export default function App() {
                   value={input}
                   onChange={(e) => setInput(e.target.value)}
                 />
-                <button className="bg-blue-500 text-black px-3 py-1 mt-2" onClick={handleSubmit}>
+                <button 
+                  className="bg-blue-500 text-black px-3 py-1 mt-2" 
+                  onClick={handleSubmit}
+                >
                   Submit
                 </button>
               </Card>
@@ -87,6 +151,16 @@ export default function App() {
           <Grid onSelect={setSelected} />
         </TabsContent>
       </Tabs>
+      {scannedIPs.length > 0 && (
+        <div className="mt-4">
+          <h2 className="text-xl font-bold">Scanned IPs:</h2>
+          <ul>
+            {scannedIPs.map((ip) => (
+              <li key={ip}>{ip}</li>
+            ))}
+          </ul>
+        </div>
+      )}
     </div>
   );
 }
