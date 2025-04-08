@@ -7,15 +7,27 @@ type Props = {
 };
 
 const GridDisplay: React.FC<Props> = ({ modules, onTileClick }) => {
-  const maxX = Math.max(...modules.map((m) => m.x)) + 1;
-  const maxY = Math.max(...modules.map((m) => m.y)) + 1;
+  if (modules.length === 0) return null;
 
-  const grid = Array.from({ length: maxY }, () =>
-    Array.from({ length: maxX }, () => null as Modules | null)
+  // Find bounds
+  const minX = Math.min(...modules.map((m) => m.x));
+  const minY = Math.min(...modules.map((m) => m.y));
+  const maxX = Math.max(...modules.map((m) => m.x));
+  const maxY = Math.max(...modules.map((m) => m.y));
+
+  const width = maxX - minX + 1;
+  const height = maxY - minY + 1;
+
+  // Initialize grid
+  const grid = Array.from({ length: height }, () =>
+    Array.from({ length: width }, () => null as Modules | null)
   );
 
+  // Populate grid with adjusted indices
   modules.forEach((mod) => {
-    grid[mod.y][mod.x] = mod;
+    const gridX = mod.x - minX;
+    const gridY = mod.y - minY;
+    grid[gridY][gridX] = mod;
   });
 
   return (
@@ -23,10 +35,10 @@ const GridDisplay: React.FC<Props> = ({ modules, onTileClick }) => {
       className="grid-container"
       style={{
         display: "grid",
-        gridTemplateColumns: `repeat(${maxX}, 1fr)`,
-        gridTemplateRows: `repeat(${maxY}, 1fr)`,
-        width: "500px",     // Fixed width
-        height: "500px",    // Fixed height
+        gridTemplateColumns: `repeat(${width}, 1fr)`,
+        gridTemplateRows: `repeat(${height}, 1fr)`,
+        width: "500px",
+        height: "500px",
         gap: "4px",
         border: "0px solid #888",
       }}

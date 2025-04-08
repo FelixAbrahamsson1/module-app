@@ -3,13 +3,34 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "../components/ui/tabs"
 import { Card } from "../components/ui/card";
 import GridDisplay from "../components/ui/GridDisplay";
 
-const test = 1;
+const test = 0;
 
 const testModules = [
-  { addr: 1, x: 0, y: 0, rotation: 0, is_placed: true },
-  { addr: 2, x: 2, y: 1, rotation: 0, is_placed: true },
+  { addr: 1, x: -1, y: 0, rotation: 0, is_placed: true },
+  { addr: 2, x: 2, y: -1, rotation: 0, is_placed: true },
   { addr: 3, x: 1, y: 3, rotation: 0, is_placed: true },
 ];
+
+interface GridProps {
+  onSelect: (index: number) => void;
+}
+
+const Grid = ({ onSelect }: GridProps) => {
+  return (
+    <div className="grid grid-cols-5 gap-2 p-4">
+      {[...Array(size * size)].map((_, i) => (
+        <div
+          key={i}
+          className="w-16 h-16 border flex items-center justify-center cursor-pointer hover:bg-gray-200"
+          onClick={() => onSelect(i)}
+        >
+          {i}
+        </div>
+      ))}
+    </div>
+  );
+};
+
 
 
 const size = 5; // 5x5 grid
@@ -45,6 +66,8 @@ export default function App() {
   const [islandMap, setIslandMap] = useState<{ [key: number]: number }>({});
   const [islands, setIslands] = useState<Island[]>([]);
 
+  const [allHeight, setAllHeight] = useState<number>(0);
+
 
   const defaultIP = "172.20.10.14";
 
@@ -59,10 +82,48 @@ export default function App() {
     }
   }, []);
 
+  const setBottom = async () => {
+    for (let i = islands[0].modules.length - 1; i >= 0; i--) {
+      console.log(`Changing ${i + 1} / ${islands[0].modules.length}`);
+      let hite = "0";
+      handleSubmit(i + 1, hite);
 
-  const handleSubmit = async () => {
+      setAllHeight(parseInt(hite));
+    }
+  }
+
+  const setTop = async () => {
+    for (let i = islands[0].modules.length - 1; i >= 0; i--) {
+      console.log(`Changing ${i + 1} / ${islands[0].modules.length}`);
+      let hite = "3";
+      handleSubmit(i + 1, hite);
+
+      setAllHeight(parseInt(hite));
+    }
+  }
+
+
+
+  const makeWaves = async () => {
+    for (let i = islands[0].modules.length - 1; i >= 0; i--) {
+      console.log(`Changing ${i + 1} / ${islands[0].modules.length}`);
+      let hite = allHeight == 3 ? "0" : "3";
+      handleSubmit(i + 1, hite);
+
+      setAllHeight(parseInt(hite));
+    }
+  }
+
+  const handleSubmit = async (module: number | null = null, num: string | null = null) => {
     if (selected !== null) {
-      setHeights({ ...heights, [selected]: input });
+      if (num == null) {
+        num = input;
+      }
+      if (module == null) {
+        module = selected;
+      }
+
+      setHeights({ ...heights, [module]: num });
       try {
         // Find earliest IP available
         let ip: string = "";
@@ -72,14 +133,14 @@ export default function App() {
           if (islands[islandMap[i]].ip != "" && islands[islandMap[i]].ip != undefined) {
             ip = islands[islandMap[i]].ip;
           }
-          if (i >= selected && ip != "")
+          if (i >= module && ip != "")
             break;
         }
 
         if (ip == "") {
           ip = defaultIP;
         }
-        let url = `http://${ip}/setHeight?module=${selected}&height=${input}`;
+        let url = `http://${ip}/setHeight?module=${module}&height=${num}`;
         console.log(url);
         // Send an HTTPS GET request to the ESP32 with module and height parameters
         const response = await fetch(
@@ -119,11 +180,13 @@ export default function App() {
     }
   }
 
-  const becomeMaster = async (index: number) => {
+  const becomeMaster = async (index: number, deviceMap: { [key: number]: string } | null = null) => {
     try {
-      if (devices[index] != undefined) {
+      if (deviceMap == null)
+        deviceMap = devices;
+      if (deviceMap[index] != undefined) {
         let response = await fetch(
-          `http://${devices[index]}/becomeMaster`,
+          `http://${deviceMap[index]}/becomeMaster`,
           {
             method: "GET",
           }
@@ -134,11 +197,13 @@ export default function App() {
     }
   }
 
-  const becomeSlave = async (index: number) => {
+  const becomeSlave = async (index: number, deviceMap: { [key: number]: string } | null = null) => {
     try {
-      if (devices[index] != undefined) {
+      if (deviceMap == null)
+        deviceMap = devices;
+      if (deviceMap[index] != undefined) {
         let response = await fetch(
-          `http://${devices[index]}/becomeSlave`,
+          `http://${deviceMap[index]}/becomeSlave`,
           {
             method: "GET",
           }
@@ -149,11 +214,14 @@ export default function App() {
     }
   }
 
-  const beginGrid = async (index: number) => {
+  const beginGrid = async (index: number, deviceMap: { [key: number]: string } | null = null) => {
+    console.log(`begin grid ${index}`);
     try {
-      if (devices[index] != undefined) {
+      if (deviceMap == null)
+        deviceMap = devices;
+      if (deviceMap[index] != undefined) {
         let response = await fetch(
-          `http://${devices[index]}/beginGrid`,
+          `http://${deviceMap[index]}/beginGrid`,
           {
             method: "GET",
           }
@@ -184,39 +252,59 @@ export default function App() {
       const newIslands: Island[] = [];
       const newIslandMap: { [key: number]: number } = {};
 
-      for (let i = 4; i < size * size; i++) {
-        if (newDevices[i] != undefined) {
-          let response = await fetch(
-            `http://${newDevices[i]}/becomeSlave`,
-            {
-              method: "GET",
-            }
-          );
-          console.log(`Made ${i} Slave!`);
-        }
+      // for (let i = 4; i < size * size; i++) {
+      //   if (newDevices[i] != undefined) {
+      //     let response = await fetch(
+      //       `http://${newDevices[i]}/becomeSlave`,
+      //       {
+      //         method: "GET",
+      //       }
+      //     );
+      //     console.log(`Made ${i} Slave!`);
+      //   }
 
+      // }
+      for (let i = 1; i < size * size; i++) {
+        if (i != 1) {
+          await becomeSlave(i, newDevices);
+        }
       }
+
+      await becomeMaster(1, newDevices);
+
+
 
       for (let i = 0; i < size * size; i++) {
         if (newDevices[i] != undefined && !newScanned.includes(i)) {
-          await fetch(`http://${newDevices[i]}/becomeMaster`);
-          console.log(`Made ${i} Master!`);
+          console.log(`Talking to ${i} on ip ${newDevices[i]}`);
+          // await fetch(`http://${newDevices[i]}/becomeMaster`);
+          // console.log(`Made ${i} Master!`);
           newScanned.push(i);
 
-          await beginGrid(i);
+          // await beginGrid(i);
+          await beginGrid(i, newDevices);
           console.log(`Began ${i} Grid!`);
 
-          await delay(2000);
+          await delay(5000);
 
-          let presentModules = await getGrid(i, newDevices);
-          console.log(`Grid output: `);
-          console.log(presentModules);
+          let presentModules: any[] | undefined = [];
+
+          let j = 0;
+          while (presentModules != undefined && presentModules.length == 0 && j < 1) {
+            presentModules = await getGrid(i, newDevices);
+            console.log(`Grid output: `);
+            console.log(presentModules);
+
+            j++;
+            await delay(1000);
+          }
 
           let modules: Modules[] = [];
 
           presentModules?.forEach((module) => {
             modules.push({ ...module });
             newScanned.push(module.addr);
+            newIslandMap[module.addr] = newIslands.length;
           });
 
 
@@ -225,6 +313,7 @@ export default function App() {
           console.log(newIslands);
 
           setIslands(newIslands);
+          setIslandMap(newIslandMap);
           break;
         }
 
@@ -242,10 +331,7 @@ export default function App() {
         console.log(newIslands);
 
         setIslands(newIslands);
-     }
-
-
-
+      }
 
     } catch (err) {
       console.error("Error:", err);
@@ -292,6 +378,25 @@ export default function App() {
         >
           Become Slave
         </button>
+        <button
+          className="bg-green-500 text-black px-4 py-2"
+          onClick={() => makeWaves()}
+        >
+          Fun Button
+        </button>
+        <button
+          className="bg-green-500 text-black px-4 py-2"
+          onClick={() => setBottom()}
+        >
+          Bring Down
+        </button>
+        <button
+          className="bg-green-500 text-black px-4 py-2"
+          onClick={() => setTop()}
+        >
+          Bring Up
+        </button>
+
       </div>
       <Tabs defaultValue="tab1" className="w-full">
         <TabsList className="mb-4">
@@ -319,7 +424,7 @@ export default function App() {
                 />
                 <button
                   className="bg-blue-500 text-black px-3 py-1 mt-2"
-                  onClick={handleSubmit}
+                  onClick={() => handleSubmit()}
                 >
                   Submit
                 </button>
@@ -336,12 +441,14 @@ export default function App() {
           )}
         </TabsContent>
         <TabsContent value="tab3">
-          {islands[0] && (
-            <GridDisplay
-              modules={islands[0].modules}
-              onTileClick={(addr: number) => setSelected(addr)}
-            />
-          )}
+
+          {/* // <GridDisplay
+            //   modules={islands[0].modules}
+            //   onTileClick={(addr: number) => setSelected(addr)}
+            // /> */}
+          <div className="flex">            <Grid onSelect={setSelected} />
+          </div>
+
         </TabsContent>
       </Tabs>
       {Object.keys(devices).length > 0 && (
