@@ -1,10 +1,16 @@
 import { useState, useEffect, useRef } from "react";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "../components/ui/tabs";
 import { Card } from "../components/ui/card";
+import GridDisplay from "../components/ui/GridDisplay";
 
-interface GridProps {
-  onSelect: (index: number) => void;
-}
+const test = 1;
+
+const testModules = [
+  { addr: 1, x: 0, y: 0, rotation: 0, is_placed: true },
+  { addr: 2, x: 2, y: 1, rotation: 0, is_placed: true },
+  { addr: 3, x: 1, y: 3, rotation: 0, is_placed: true },
+];
+
 
 const size = 5; // 5x5 grid
 type Device = {
@@ -14,33 +20,16 @@ type Device = {
 
 type Island = {
   ip: string;
-  ids: number[];
+  modules: Modules[];
 };
 
-type Modules = {
-  addr : number;
+export type Modules = {
+  addr: number;
   x: number;
   y: number;
   rotation: number;
   is_placed: boolean;
 }
-
-
-const Grid = ({ onSelect }: GridProps) => {
-  return (
-    <div className="grid grid-cols-5 gap-2 p-4">
-      {[...Array(size * size)].map((_, i) => (
-        <div
-          key={i}
-          className="w-16 h-16 border flex items-center justify-center cursor-pointer hover:bg-gray-200"
-          onClick={() => onSelect(i)}
-        >
-          {i}
-        </div>
-      ))}
-    </div>
-  );
-};
 
 const delay = (ms: number) => {
   return new Promise(res => setTimeout(res, ms));
@@ -68,16 +57,8 @@ export default function App() {
       handleGetIPs();
       hasRunOnce.current = true;
     }
-    
-    // Set up interval
-    // const interval = setInterval(() => {
-    //   handleGetIPs();
-    // }, 10000); // 10,000 ms = 10s
-  
-    // Clean up on unmount
-    // return () => clearInterval(interval);
   }, []);
-  
+
 
   const handleSubmit = async () => {
     if (selected !== null) {
@@ -140,7 +121,7 @@ export default function App() {
 
   const becomeMaster = async (index: number) => {
     try {
-      if (devices[index] != undefined) {          
+      if (devices[index] != undefined) {
         let response = await fetch(
           `http://${devices[index]}/becomeMaster`,
           {
@@ -155,7 +136,7 @@ export default function App() {
 
   const becomeSlave = async (index: number) => {
     try {
-      if (devices[index] != undefined) {          
+      if (devices[index] != undefined) {
         let response = await fetch(
           `http://${devices[index]}/becomeSlave`,
           {
@@ -170,7 +151,7 @@ export default function App() {
 
   const beginGrid = async (index: number) => {
     try {
-      if (devices[index] != undefined) {          
+      if (devices[index] != undefined) {
         let response = await fetch(
           `http://${devices[index]}/beginGrid`,
           {
@@ -203,29 +184,22 @@ export default function App() {
       const newIslands: Island[] = [];
       const newIslandMap: { [key: number]: number } = {};
 
-      // for (let i = 4; i < size * size; i++) {
-      //   if (newDevices[i] != undefined) {
-      //     let response = await fetch(
-      //       `http://${newDevices[i]}/becomeSlave`,
-      //       {
-      //         method: "GET",
-      //       }
-      //     );
-      //     console.log(`Made ${i} Slave!`);
-      //   }
-
-      // }
-
-      // await delay(1000);
-
-      for (let i = 0; i < size * size; i++) {
-        if (newDevices[i] != undefined && !newScanned.includes(i)) {
+      for (let i = 4; i < size * size; i++) {
+        if (newDevices[i] != undefined) {
           let response = await fetch(
-            `http://${newDevices[i]}/becomeMaster`,
+            `http://${newDevices[i]}/becomeSlave`,
             {
               method: "GET",
             }
           );
+          console.log(`Made ${i} Slave!`);
+        }
+
+      }
+
+      for (let i = 0; i < size * size; i++) {
+        if (newDevices[i] != undefined && !newScanned.includes(i)) {
+          await fetch(`http://${newDevices[i]}/becomeMaster`);
           console.log(`Made ${i} Master!`);
           newScanned.push(i);
 
@@ -234,29 +208,43 @@ export default function App() {
 
           await delay(2000);
 
-          let modules = await getGrid(i, newDevices);
+          let presentModules = await getGrid(i, newDevices);
           console.log(`Grid output: `);
-          console.log(modules);
+          console.log(presentModules);
 
-          let ids: number[] = [];
+          let modules: Modules[] = [];
 
-          modules?.forEach((module) => {
-            ids.push(module.addr);
+          presentModules?.forEach((module) => {
+            modules.push({ ...module });
             newScanned.push(module.addr);
-            // Record that this module maps to this island
-            newIslandMap[module.addr] = newIslands.length;
           });
 
-          newIslands.push({ip: newDevices[i], ids: ids});
+
+          newIslands.push({ ip: newDevices[i], modules: modules });
           console.log("ISLANDS Found:");
           console.log(newIslands);
 
           setIslands(newIslands);
-          setIslandMap(newIslandMap);
           break;
         }
 
       }
+
+      if (test) {
+        let modules: Modules[] = [];
+
+        testModules.forEach((module) => {
+          modules.push({ ...module });
+        });
+
+        newIslands[0] = { ip: "0.0.0.0", modules: modules };
+        console.log("ISLANDS Found:");
+        console.log(newIslands);
+
+        setIslands(newIslands);
+     }
+
+
 
 
     } catch (err) {
@@ -291,7 +279,7 @@ export default function App() {
           onClick={() => beginGrid(selected)}
         >
           Begin Grid
-        </button> 
+        </button>
         <button
           className="bg-green-500 text-black px-4 py-2"
           onClick={() => becomeMaster(selected)}
@@ -313,7 +301,12 @@ export default function App() {
         </TabsList>
         <TabsContent value="tab1">
           <div className="flex">
-            <Grid onSelect={setSelected} />
+            {islands[0] && (
+              <GridDisplay
+                modules={islands[0].modules}
+                onTileClick={(addr: number) => setSelected(addr)}
+              />
+            )}
             {selected !== null && (
               <Card className="p-4 ml-4">
                 <p>Selected: {selected}</p>
@@ -335,10 +328,20 @@ export default function App() {
           </div>
         </TabsContent>
         <TabsContent value="tab2">
-          <Grid onSelect={setSelected} />
+          {islands[0] && (
+            <GridDisplay
+              modules={islands[0].modules}
+              onTileClick={(addr: number) => setSelected(addr)}
+            />
+          )}
         </TabsContent>
         <TabsContent value="tab3">
-          <Grid onSelect={setSelected} />
+          {islands[0] && (
+            <GridDisplay
+              modules={islands[0].modules}
+              onTileClick={(addr: number) => setSelected(addr)}
+            />
+          )}
         </TabsContent>
       </Tabs>
       {Object.keys(devices).length > 0 && (
